@@ -43,10 +43,15 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 
 echo "== 4. run the eval (formosa first for every model, then the long exam)"
-MODELS_ARG=()
-[ -n "${MODELS:-}" ] && MODELS_ARG=(--models ${MODELS})
-./.venv/bin/python eval_mlx.py --benches formosa "${MODELS_ARG[@]}"
-./.venv/bin/python eval_mlx.py --benches exam    "${MODELS_ARG[@]}"
+# macOS ships bash 3.2, which errors on an empty array under `set -u`; branch
+# on MODELS instead of building an array.
+if [ -n "${MODELS:-}" ]; then
+  ./.venv/bin/python eval_mlx.py --benches formosa --models ${MODELS}
+  ./.venv/bin/python eval_mlx.py --benches exam    --models ${MODELS}
+else
+  ./.venv/bin/python eval_mlx.py --benches formosa
+  ./.venv/bin/python eval_mlx.py --benches exam
+fi
 
 echo "== 5. done. Results auto-pushed to the mac-results branch throughout."
 echo "     (manual: git add results && git commit -m results && git push origin HEAD:mac-results)"
