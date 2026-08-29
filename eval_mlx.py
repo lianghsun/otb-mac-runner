@@ -42,12 +42,19 @@ _MARKED = re.compile(r"(?:答案|正確選項|正解|答|選)\s*(?:是|為|:|：
 _ANY = re.compile(r"(?<![A-Za-z])([A-Da-d])(?![A-Za-z])")
 
 DEFAULT_MODELS = [
+    # --- driver-blocked small models (the reason we need the Mac at all) ---
     "ornith-ai/Ornith-1.5-9B",
     "LiquidAI/LFM2-1.2B",
     "LiquidAI/LFM2-700M",
     "ibm-granite/granite-4.0-h-small",
     "ibm-granite/granite-4.0-h-tiny",
     "ibm-granite/granite-4.0-micro",
+    # --- big models the 24GB 3090 can't fit; run in full precision (bf16),
+    #     one at a time, weights reclaimed after each so peak disk stays low ---
+    "Qwen/Qwen3-30B-A3B",            # MoE, current-gen, cheap to run
+    "Qwen/Qwen2.5-32B-Instruct",
+    "Qwen/Qwen3-32B",
+    "Qwen/Qwen2.5-72B-Instruct",     # flagship upper anchor (~145GB bf16)
 ]
 
 
@@ -74,6 +81,24 @@ def lenient(text: str):
             return _ORD.get(g, g)
     m = _ANY.search(t)
     return m.group(1).upper() if m else None
+
+
+def purge_model(model):
+    """Delete this model's downloaded weights from the HF cache after scoring,
+    so the borrowed Mac's disk never holds more than one model at a time. Only
+    the model snapshot is removed — the private benchmark parquet stays cached."""
+    import shutil
+    cache = (os.environ.get("HF_HUB_CACHE")
+             or (os.environ.get("HF_HOME") and pathlib.Path(os.environ["HF_HOME"]) / "hub")
+             or pathlib.Path.home() / ".cache" / "huggingface" / "hub")
+    d = pathlib.Path(cache) / ("models--" + model.replace("/", "--"))
+    if d.exists():
+        try:
+            freed = sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+        except Exception:
+            freed = 0
+        shutil.rmtree(d, ignore_errors=True)
+        print(f"    reclaimed weights: {model}  (~{freed / 1e9:.1f} GB)", flush=True)
 
 
 def load_rows(parquet):
@@ -156,25 +181,58 @@ def main():
     ap.add_argument("--models", nargs="*", default=DEFAULT_MODELS)
     ap.add_argument("--benches", nargs="*", default=list(BENCHES))
     ap.add_argument("--max-tokens", type=int, default=4096)
+    ap.add_argument("--keep", action="store_true",
+                    help="keep weights after each model (default: reclaim)")
     args = ap.parse_args()
 
-    ok, failed = [], []
+    counts: dict[str, int] = {}
+
+    def complete(model):
+        """True if every bench already has all its rows scored — checked from
+        the JSONL line counts alone, so a finished model is skipped without
+        re-downloading its weights (the current run scores under older code that
+        never wrote a .done marker)."""
+        d = OUT / model.replace("/", "_")
+        for b in args.benches:
+            counts.setdefault(b, len(load_rows(BENCHES[b])))
+            p = d / f"{b}.jsonl"
+            n = sum(1 for _ in p.open()) if p.exists() else 0
+            if n < counts[b]:
+                return False
+        return True
+
+    ok, failed, skipped = [], [], []
     for model in args.models:
+        marker = OUT / model.replace("/", "_") / ".done"
+        if marker.exists() or complete(model):   # scored already — don't re-download
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text("done\n")
+            print(f"\n=== skip {model} (already done)", flush=True)
+            skipped.append(model)
+            continue
         try:
             run_model(model, args.benches, args.max_tokens)
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text("done\n")     # so a rerun won't re-download it
             ok.append(model)
         except Exception as e:
             print(f"    !! {model} failed: {type(e).__name__}: {str(e)[:200]}",
                   flush=True)
             failed.append((model, f"{type(e).__name__}: {str(e)[:200]}"))
+        finally:
+            if not args.keep:               # reclaim disk whether it passed or failed
+                purge_model(model)
 
     print("\n===== SUMMARY =====")
     for m in ok:
         print(f"  OK      {m}")
+    for m in skipped:
+        print(f"  SKIP    {m}  (already done)")
     for m, why in failed:
         print(f"  FAILED  {m}  ({why})")
     (OUT / "_summary.json").write_text(json.dumps(
-        {"ok": ok, "failed": failed}, ensure_ascii=False, indent=2))
+        {"ok": ok, "skipped": skipped, "failed": failed},
+        ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

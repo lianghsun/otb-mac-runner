@@ -44,15 +44,16 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "   auto-push armed (pid $PUSHER) — results stream to branch mac-results"
 fi
 
-echo "== 4. run the eval (formosa first for every model, then the long exam)"
-# macOS ships bash 3.2, which errors on an empty array under `set -u`; branch
-# on MODELS instead of building an array.
+echo "== 4. run the eval (per model: formosa then exam, then reclaim its weights)"
+# One pass, one model at a time: score formosa+exam, then delete that model's
+# weights before downloading the next — so the borrowed Mac never holds more
+# than one model on disk. A rerun skips models already marked .done.
+# (macOS ships bash 3.2, which errors on an empty array under `set -u`; branch
+# on MODELS instead of building an array.)
 if [ -n "${MODELS:-}" ]; then
-  ./.venv/bin/python eval_mlx.py --benches formosa --models ${MODELS}
-  ./.venv/bin/python eval_mlx.py --benches exam    --models ${MODELS}
+  ./.venv/bin/python eval_mlx.py --models ${MODELS}
 else
-  ./.venv/bin/python eval_mlx.py --benches formosa
-  ./.venv/bin/python eval_mlx.py --benches exam
+  ./.venv/bin/python eval_mlx.py
 fi
 
 echo "== 5. done. Results auto-pushed to the mac-results branch throughout."
