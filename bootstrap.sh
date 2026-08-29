@@ -35,6 +35,8 @@ push_now(){ git add results 2>/dev/null || true; \
     commit -q -m "results $(date +%H:%M)" 2>/dev/null && \
     git push -q origin HEAD:mac-results 2>/dev/null && echo "   [auto-push $(date +%H:%M)]" || true; }
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  # self-update: pull the latest code from main, then branch results off it
+  git checkout main >/dev/null 2>&1 && git pull -q origin main 2>/dev/null || true
   git checkout -B mac-results >/dev/null 2>&1 || true
   ( while true; do sleep 300; push_now; done ) &
   PUSHER=$!
