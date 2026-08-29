@@ -49,12 +49,24 @@ DEFAULT_MODELS = [
     "ibm-granite/granite-4.0-h-small",
     "ibm-granite/granite-4.0-h-tiny",
     "ibm-granite/granite-4.0-micro",
-    # --- big models the 24GB 3090 can't fit; run in full precision (bf16),
-    #     one at a time, weights reclaimed after each so peak disk stays low ---
-    "Qwen/Qwen3-30B-A3B",            # MoE, current-gen, cheap to run
-    "Qwen/Qwen2.5-32B-Instruct",
-    "Qwen/Qwen3-32B",
-    "Qwen/Qwen2.5-72B-Instruct",     # flagship upper anchor (~145GB bf16)
+    # --- big models the 24GB 3090 can't fit; full precision (bf16), one at a
+    #     time, weights reclaimed after each so peak disk stays low. Ordered
+    #     small -> large so the faster ones produce scores first. (g) = gated:
+    #     accept the license once on the HF model page with this token's
+    #     account, or it FAILs with 403 (logged, not fatal). ~GB = bf16 weights.
+    "THUDM/glm-4-9b-chat",                       # ~18GB
+    "mistralai/Mistral-Nemo-Instruct-2407",      # ~24GB  (g)
+    "Qwen/Qwen3-30B-A3B",                         # MoE, cheap to run
+    "mistralai/Mistral-Small-24B-Instruct-2501", # ~48GB  (g)
+    "google/gemma-3-27b-it",                      # ~54GB  (g)
+    "Qwen/Qwen2.5-32B-Instruct",                  # ~64GB
+    "zai-org/GLM-4-32B-0414",                     # ~64GB
+    "Qwen/Qwen3-32B",                             # ~64GB
+    "mistralai/Mixtral-8x7B-Instruct-v0.1",       # ~93GB MoE  (g)
+    "Qwen/Qwen2.5-72B-Instruct",                  # ~145GB flagship upper anchor
+    # Can't fit at bf16 on 256GB — quantize-only, off the board by rule:
+    #   Kimi-K2 (~2TB), MiniMax-Text-01 (~912GB), GLM-4.5 (~710GB),
+    #   Mistral-Large-2411 (~246GB > 224GB wired).
 ]
 
 
