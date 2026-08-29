@@ -57,6 +57,7 @@ DEFAULT_MODELS = [
     "THUDM/glm-4-9b-chat",                       # ~18GB
     "mistralai/Mistral-Nemo-Instruct-2407",      # ~24GB  (g)
     "Qwen/Qwen3-30B-A3B",                         # MoE, cheap to run
+    "deepseek-ai/DeepSeek-V2-Lite-Chat",          # ~31GB MoE, non-reasoning
     "mistralai/Mistral-Small-24B-Instruct-2501", # ~48GB  (g)
     "google/gemma-3-27b-it",                      # ~54GB  (g)
     "Qwen/Qwen2.5-32B-Instruct",                  # ~64GB
@@ -64,10 +65,27 @@ DEFAULT_MODELS = [
     "Qwen/Qwen3-32B",                             # ~64GB
     "mistralai/Mixtral-8x7B-Instruct-v0.1",       # ~93GB MoE  (g)
     "Qwen/Qwen2.5-72B-Instruct",                  # ~145GB flagship upper anchor
+    # --- reasoning models LAST: they think for thousands of tokens before the
+    #     \boxed{}, so formosa is slow and the 22,200-q exam can take weeks each.
+    #     formosa runs first per model and auto-pushes, so a partial run still
+    #     scores them. They get max_tokens=16384 (see MAX_TOKENS). ---
+    "Qwen/QwQ-32B",                               # ~64GB reasoning
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",   # ~28GB reasoning
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",   # ~64GB reasoning
+    "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",  # ~140GB reasoning
     # Can't fit at bf16 on 256GB — quantize-only, off the board by rule:
-    #   Kimi-K2 (~2TB), MiniMax-Text-01 (~912GB), GLM-4.5 (~710GB),
-    #   Mistral-Large-2411 (~246GB > 224GB wired).
+    #   Kimi-K2 (~2TB), DeepSeek-R1 / V3 (~1.3TB), MiniMax-Text-01 (~912GB),
+    #   GLM-4.5 (~710GB), Mistral-Large-2411 (~246GB > 224GB wired).
 ]
+
+# Reasoning models need room to finish thinking before the \boxed{} answer;
+# 4096 truncates them mid-thought. Everything else stays at the CLI default.
+MAX_TOKENS = {
+    "Qwen/QwQ-32B": 16384,
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": 16384,
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": 16384,
+    "deepseek-ai/DeepSeek-R1-Distill-Llama-70B": 16384,
+}
 
 
 def qhash(stem: str) -> str:
@@ -223,7 +241,7 @@ def main():
             skipped.append(model)
             continue
         try:
-            run_model(model, args.benches, args.max_tokens)
+            run_model(model, args.benches, MAX_TOKENS.get(model, args.max_tokens))
             marker.parent.mkdir(parents=True, exist_ok=True)
             marker.write_text("done\n")     # so a rerun won't re-download it
             ok.append(model)
