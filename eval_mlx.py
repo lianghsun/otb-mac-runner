@@ -162,11 +162,47 @@ def shuffled(row):
     return out
 
 
+def accel_downloads():
+    """Enable hf_transfer (Rust high-throughput, for LFS repos) ONLY if it's
+    importable — an enabled-but-missing hf_transfer makes every download raise a
+    ValueError. hf_xet, when installed, is used automatically for Xet-backed
+    repos regardless of this."""
+    try:
+        import hf_transfer  # noqa: F401
+        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+        return "hf_transfer"
+    except Exception:
+        os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None)
+        return None
+
+
+def ensure_weights(model, tries=4):
+    """Fetch weights to the HF cache before load(), retrying so a dropped
+    connection on a slow link resumes (incomplete files are kept) instead of
+    failing the whole model. Uses hf_transfer / hf_xet when present. Gated /
+    missing repos raise immediately — retrying won't fix them."""
+    from huggingface_hub import snapshot_download
+    from huggingface_hub.errors import RepositoryNotFoundError, GatedRepoError
+    for i in range(tries):
+        try:
+            snapshot_download(model, token=os.environ.get("HF_TOKEN"))
+            return
+        except (RepositoryNotFoundError, GatedRepoError):
+            raise
+        except Exception as e:
+            if i == tries - 1:
+                raise
+            print(f"    download retry {i + 1}/{tries} for {model}: "
+                  f"{type(e).__name__}: {str(e)[:120]}", flush=True)
+            time.sleep(min(60, 10 * (i + 1)))
+
+
 def run_model(model, benches, max_tokens):
     from mlx_lm import load, generate
     from mlx_lm.sample_utils import make_sampler
     print(f"\n=== loading {model}", flush=True)
     t0 = time.time()
+    ensure_weights(model)          # robust, accelerated pre-download (resumable)
     mdl, tok = load(model)
     print(f"    loaded in {time.time() - t0:.0f}s", flush=True)
     sampler = make_sampler(temp=0.0)
@@ -215,6 +251,9 @@ def run_model(model, benches, max_tokens):
 
 
 def main():
+    accel = accel_downloads()
+    print(f"   download accelerator: {accel or 'hf_xet/LFS (hf_transfer not installed)'}",
+          flush=True)
     ap = argparse.ArgumentParser()
     ap.add_argument("--models", nargs="*", default=DEFAULT_MODELS)
     ap.add_argument("--benches", nargs="*", default=list(BENCHES))

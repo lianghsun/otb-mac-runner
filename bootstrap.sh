@@ -21,15 +21,13 @@ echo "== 1. Python venv + MLX"
 PYBIN="$(command -v python3.11 || command -v python3)"
 "$PYBIN" -m venv .venv
 ./.venv/bin/pip -q install --upgrade pip
-# Two download accelerators, each covering a different backend:
-#   hf_xet      — chunk dedup/parallelism for Xet-backed repos (auto-used)
-#   hf_transfer — Rust high-throughput, in-file parallelism for LFS repos
-#                 (many older repos, e.g. IBM Granite, are still LFS)
-./.venv/bin/pip -q install "mlx-lm>=0.28" "mlx-vlm>=0.1" pyarrow "huggingface_hub[hf_xet]" hf_xet hf_transfer || \
-  ./.venv/bin/pip -q install "mlx-lm" "mlx-vlm" pyarrow "huggingface_hub" hf_xet hf_transfer
-# Push LFS downloads toward the link's ceiling. If it ever errors on a flaky
-# connection, unset this and rerun (it falls back to the normal downloader).
-export HF_HUB_ENABLE_HF_TRANSFER=1
+# hf_xet — chunk dedup/parallelism for Xet-backed repos (auto-used when present)
+./.venv/bin/pip -q install "mlx-lm>=0.28" "mlx-vlm>=0.1" pyarrow "huggingface_hub[hf_xet]" hf_xet || \
+  ./.venv/bin/pip -q install "mlx-lm" "mlx-vlm" pyarrow "huggingface_hub" hf_xet
+# hf_transfer — Rust high-throughput for LFS repos (e.g. IBM Granite). Best-effort:
+# a build failure must NOT break the run, and eval_mlx.py enables it only when it
+# actually imports (an enabled-but-missing hf_transfer hard-fails every download).
+./.venv/bin/pip -q install hf_transfer || echo "   (hf_transfer unavailable — downloads fall back to Xet/LFS)"
 ./.venv/bin/python -c "import mlx.core as mx; print('   MLX ok, device:', mx.default_device())"
 
 echo "== 2. lift the GPU wired-memory limit (unified memory — let MLX use it all)"
