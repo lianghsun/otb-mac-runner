@@ -46,9 +46,17 @@ push_now(){
   fi
 }
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  # self-update: pull the latest code from main, then branch results off it
-  git checkout main >/dev/null 2>&1 && git pull -q origin main 2>/dev/null || true
-  git checkout -B mac-results >/dev/null 2>&1 || true
+  # self-update the CODE from main WITHOUT touching results/ or resetting the
+  # branch. (The old `checkout main; checkout -B mac-results` reset mac-results
+  # to main and wiped the working-tree results, forcing a full re-download.)
+  git fetch -q origin main 2>/dev/null || true
+  git checkout -q origin/main -- eval_mlx.py README.md 2>/dev/null || true
+  # make sure result commits land on mac-results (existing branch, or new)
+  if git show-ref -q --verify refs/heads/mac-results; then
+    git checkout -q mac-results 2>/dev/null || true
+  else
+    git checkout -q -b mac-results 2>/dev/null || true
+  fi
   ( while true; do sleep 300; push_now; done ) &
   PUSHER=$!
   trap 'kill $PUSHER 2>/dev/null || true; push_now' EXIT
