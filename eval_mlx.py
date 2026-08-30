@@ -253,12 +253,19 @@ def main():
             marker.parent.mkdir(parents=True, exist_ok=True)
             marker.write_text("done\n")     # so a rerun won't re-download it
             ok.append(model)
+            if not args.keep:               # reclaim disk after a completed model
+                purge_model(model)
+        except KeyboardInterrupt:
+            # Ctrl-C: leave the weights (even a partial download) so the next
+            # run resumes instead of re-downloading tens of GB. Do NOT purge.
+            print(f"\n    interrupted during {model} — weights kept for resume",
+                  flush=True)
+            raise
         except Exception as e:
             print(f"    !! {model} failed: {type(e).__name__}: {str(e)[:200]}",
                   flush=True)
             failed.append((model, f"{type(e).__name__}: {str(e)[:200]}"))
-        finally:
-            if not args.keep:               # reclaim disk whether it passed or failed
+            if not args.keep:               # reclaim disk after a real failure
                 purge_model(model)
 
     print("\n===== SUMMARY =====")
