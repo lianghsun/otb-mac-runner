@@ -30,10 +30,21 @@ sudo sysctl iogpu.wired_limit_mb=229376 2>/dev/null || \
   echo "   (skipped — run 'sudo sysctl iogpu.wired_limit_mb=229376' by hand for big models)"
 
 echo "== 3. background auto-push: commit+push new results every 5 min"
-push_now(){ git add results 2>/dev/null || true; \
+push_now(){
+  git add results 2>/dev/null || true
+  # commit if there's anything new (ok to fail when nothing changed)
   git -c user.email=lianghsunh@gmail.com -c user.name="Liang-Hsun Huang" \
-    commit -q -m "results $(date +%H:%M)" 2>/dev/null && \
-    git push -q origin HEAD:mac-results 2>/dev/null && echo "   [auto-push $(date +%H:%M)]" || true; }
+    commit -q -m "results $(date +%H:%M)" 2>/dev/null || true
+  # ALWAYS try to push (so once creds are fixed, the backlog goes up at once),
+  # and SHOW the error instead of hiding it — a silent push failure means hours
+  # of results never sync.
+  if err=$(git push origin HEAD:mac-results 2>&1); then
+    echo "   [auto-push $(date +%H:%M)] ok"
+  else
+    echo "   [auto-push $(date +%H:%M)] !! PUSH FAILED — results are safe on disk, but not synced. Fix push creds:"
+    printf '%s\n' "$err" | sed 's/^/       /'
+  fi
+}
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   # self-update: pull the latest code from main, then branch results off it
   git checkout main >/dev/null 2>&1 && git pull -q origin main 2>/dev/null || true
