@@ -74,6 +74,7 @@ DEFAULT_MODELS = [
     #     \boxed{}, so formosa is slow and the 22,200-q exam can take weeks each.
     #     formosa runs first per model and auto-pushes, so a partial run still
     #     scores them. They get max_tokens=16384 (see MAX_TOKENS). ---
+    "microsoft/Phi-4-reasoning-plus",             # ~28GB reasoning (14B)
     "Qwen/QwQ-32B",                               # ~64GB reasoning
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",   # ~28GB reasoning
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",   # ~64GB reasoning
@@ -87,6 +88,7 @@ DEFAULT_MODELS = [
 # Reasoning models need room to finish thinking before the \boxed{} answer;
 # 4096 truncates them mid-thought. Everything else stays at the CLI default.
 MAX_TOKENS = {
+    "microsoft/Phi-4-reasoning-plus": 16384,
     "Qwen/QwQ-32B": 16384,
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B": 16384,
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B": 16384,
