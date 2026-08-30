@@ -58,6 +58,7 @@ DEFAULT_MODELS = [
     "THUDM/glm-4-9b-chat",                       # ~18GB
     "01-ai/Yi-1.5-9B-Chat",                      # ~18GB
     "mistralai/Mistral-Nemo-Instruct-2407",      # ~24GB   (g)
+    "microsoft/Phi-4",                            # ~28GB   14B dense
     "Qwen/Qwen3-30B-A3B",                         # MoE, cheap to run
     "deepseek-ai/DeepSeek-V2-Lite-Chat",          # ~31GB MoE, non-reasoning
     "mistralai/Mistral-Small-24B-Instruct-2501", # ~48GB   (g)
