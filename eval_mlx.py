@@ -42,14 +42,47 @@ _MARKED = re.compile(r"(?:答案|正確選項|正解|答|選)\s*(?:是|為|:|：
 _ANY = re.compile(r"(?<![A-Za-z])([A-Da-d])(?![A-Za-z])")
 
 DEFAULT_MODELS = [
-    # The Mac's unique value: driver-blocked architectures (mamba hybrids, LFM2)
-    # that the 3090's vLLM 0.8.5 can't serve. The big/reasoning models moved to
-    # the B200 (vLLM) runner — see otb-b200-runner. Ornith (multimodal) too.
+    # --- driver-blocked small models (the reason we need the Mac at all) ---
+    "ornith-ai/Ornith-1.5-9B",
     "LiquidAI/LFM2-1.2B",
     "LiquidAI/LFM2-700M",
     "ibm-granite/granite-4.0-h-small",
     "ibm-granite/granite-4.0-h-tiny",
     "ibm-granite/granite-4.0-micro",
+    # --- big models the 24GB 3090 can't fit; full precision (bf16), one at a
+    #     time, weights reclaimed after each so peak disk stays low. Ordered
+    #     small -> large so the faster ones produce scores first. (g) = gated:
+    #     accept the license once on the HF model page with this token's
+    #     account, or it FAILs with 403 (logged, not fatal). ~GB = bf16 weights.
+    "tencent/Hunyuan-7B-Instruct",               # ~14GB   (g?, arch may be unsupported)
+    "THUDM/glm-4-9b-chat",                       # ~18GB
+    "01-ai/Yi-1.5-9B-Chat",                      # ~18GB
+    "mistralai/Mistral-Nemo-Instruct-2407",      # ~24GB   (g)
+    "microsoft/Phi-4",                            # ~28GB   14B dense
+    "Qwen/Qwen3-30B-A3B",                         # MoE, cheap to run
+    "deepseek-ai/DeepSeek-V2-Lite-Chat",          # ~31GB MoE, non-reasoning
+    "mistralai/Mistral-Small-24B-Instruct-2501", # ~48GB   (g)
+    "google/gemma-3-27b-it",                      # ~54GB   (g)
+    "Qwen/Qwen2.5-32B-Instruct",                  # ~64GB
+    "zai-org/GLM-4-32B-0414",                     # ~64GB
+    "Qwen/Qwen3-32B",                             # ~64GB
+    "01-ai/Yi-1.5-34B-Chat",                      # ~68GB
+    "mistralai/Mixtral-8x7B-Instruct-v0.1",       # ~93GB MoE  (g)
+    "Qwen/Qwen2.5-72B-Instruct",                  # ~145GB flagship upper anchor
+    "tencent/Hunyuan-A13B-Instruct",              # ~160GB MoE  (g?, arch may be unsupported)
+    # --- reasoning models LAST: they think for thousands of tokens before the
+    #     \boxed{}, so formosa is slow and the 22,200-q exam can take weeks each.
+    #     formosa runs first per model and auto-pushes, so a partial run still
+    #     scores them. They get max_tokens=16384 (see MAX_TOKENS). ---
+    "microsoft/Phi-4-reasoning-plus",             # ~28GB reasoning (14B)
+    "Qwen/QwQ-32B",                               # ~64GB reasoning
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",   # ~28GB reasoning
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",   # ~64GB reasoning
+    "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",  # ~140GB reasoning
+    # Can't fit at bf16 on 256GB — quantize-only, off the board by rule:
+    #   Kimi-K2 (~2TB), DeepSeek-R1 / V3 (~1.3TB), MiniMax-Text-01 (~912GB),
+    #   Hunyuan-Large (~780GB), GLM-4.5 (~710GB),
+    #   Mistral-Large-2411 (~246GB > 224GB wired).
 ]
 
 # Reasoning models need room to finish thinking before the \boxed{} answer;
